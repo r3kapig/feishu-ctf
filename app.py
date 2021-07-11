@@ -61,7 +61,7 @@ def handle_message(event):
     return
 
 
-@app.route('/callback')
+@app.route('/callback', methods=['POST'])
 def callback():
     """feishu callback procedure
     """
