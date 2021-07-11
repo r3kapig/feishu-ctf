@@ -6,7 +6,7 @@ name: flask-9Qp2zdng2
 inputs:
   src:
     hook: pip3 install -r requirements.txt -t ./
-    dist: ./
+    dist: ./feishu-ctf
     exclude:
       - .env
   region: ap-beijing
