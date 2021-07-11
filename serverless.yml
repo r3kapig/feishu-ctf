@@ -1,0 +1,25 @@
+org: '1259721870'
+app: feishu-ctf
+stage: dev
+component: flask
+name: flask-9Qp2zdng2
+inputs:
+  src:
+    hook: pip3 install -r requirements.txt -t ./
+    dist: ./
+    exclude:
+      - .env
+  region: ap-beijing
+  runtime: Python3.8
+  apigatewayConf:
+    protocols:
+      - http
+      - https
+    environment: release
+    serviceTimeout: 60
+    autoCreateDns: false
+  isAutoCiDeploy: false
+  functionConf:
+    eip: false
+    timeout: 3
+    memorySize: 128
