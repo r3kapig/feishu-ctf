@@ -10,7 +10,7 @@ inputs:
     exclude:
       - .env
   region: ap-beijing
-  runtime: Python3.8
+  runtime: Python3.6
   apigatewayConf:
     protocols:
       - http
