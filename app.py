@@ -11,7 +11,10 @@ def callback() -> Optional[requests.Response]:
     """feishu callback procedure
     """
     handler = FeishuMessageHandler(request)
-    handler.handle_message()
+    try:
+        handler.handle_message()
+    except Exception as e:
+        str(e), 400
 
 
 @app.route("/")
