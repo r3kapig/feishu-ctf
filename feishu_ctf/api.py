@@ -22,6 +22,7 @@ class FeishuClient:
     CREATE_CHAT_URL = 'https://open.feishu.cn/open-apis/im/v1/chats'
     CHAT_INFO_URL = 'https://open.feishu.cn/open-apis/im/v1/chats/{}'
     LIST_CHAT_URL = 'https://open.feishu.cn/open-apis/im/v1/chats'
+    USER_INFO_URL = 'https://open.feishu.cn/open-apis/contact/v1/user/batch_get?employee_ids={}'
 
     bot_info: Dict[str, Any]
 
@@ -46,7 +47,7 @@ class FeishuClient:
         res = res.json()
         code = res.get('code', -1)
         if code != 0:
-                raise FeishuException('Feishu API error with {}'.format(res.get('msg', '(no msg)')))
+            raise FeishuException('Feishu API error with {}'.format(res.get('msg', '(no msg)')))
         else:
             return res
 
@@ -126,5 +127,9 @@ class FeishuClient:
             'msg_type': msg_type
         }
         return self.authorized_post(url, data)
+
+    def get_user_name(self, user_id: str):
+        url = FeishuClient.USER_INFO_URL.format(user_id)
+        return self.authorized_get(url)['data']['user_infos'][0]['name']
 
 API = FeishuClient()
