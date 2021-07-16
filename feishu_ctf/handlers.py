@@ -3,7 +3,7 @@ from flask.json import jsonify
 import json
 import traceback
 from flask import Request, Response
-from feishu_ctf.api import API
+from feishu_ctf.api import API, DocAPI
 from feishu_ctf.ctf import CTF, ChallState
 
 
@@ -124,40 +124,6 @@ class NewChallCommand(CommandHandler):
     def args():
         return [CommandArg('category'), CommandArg('name')]
 
-    @staticmethod
-    def is_heading(b: Dict[str, Any], level: int) -> bool:
-        return b['type'] == 'paragraph' and \
-                b.get('paragraph') is not None and \
-                b['paragraph'].get('style') is not None and \
-                b['paragraph']['style'].get('headingLevel') == level
-
-    @staticmethod
-    def get_paragraph_str(b: Dict[str, Any]) -> str:
-        # `b` must be paragraph
-        elements = b['paragraph'].get('elements')
-        if type(elements) != list: # elements is None
-            return ""
-        ret = ""
-        for e in elements:
-            if e['type'] == 'textRun' and \
-                e.get('textRun') is not None and \
-                e['textRun'].get('text') is not None:
-                ret += e['textRun']['text']
-        return ret
-
-    @staticmethod
-    def make_category_head(category: str, level: int) -> str:
-        return json.dumps({'blocks':[{"type": "paragraph",
-            "paragraph": {
-                "elements":
-                    [{"type": "textRun",
-                        "textRun":
-                        {"text": category,
-                        "style": {}}
-                        }],
-                "style": {"headingLevel" : level}
-            }}]}, separators=(',', ':'))
-
     def handle_command(self, cmd: List[str], event: Dict[str, Any]) -> Response:
         chat_id = event['message']['chat_id']
 
@@ -193,21 +159,21 @@ class NewChallCommand(CommandHandler):
         loc = None
         for i in range(0, len(body_blocks)):
             b = body_blocks[i]
-            if NewChallCommand.is_heading(b, 2) and \
-                NewChallCommand.get_paragraph_str(b) == chall_category:
-                loc = b['paragraph']['location']['endIndex']
-            elif i == len(body_blocks) - 1:
-                loc = b[b['type']]['location']['endIndex']
-                data = {
-                'Revision': doc['revision'],
-                'Requests': [json.dumps({'requestType': 'InsertBlocksRequestType',
-                    'insertBlocksRequest':
-                        {'payload': NewChallCommand.make_category_head(chall_category, 2),
-                        'location':
-                            {'zoneId': 0, 'index': 0, 'endOfZone': True}}}, separators=(',', ':'))]}
-                API.send_message(chat_id, {'text': "{}".format(data)})
-                API.update_doc(tok, data)
-        assert loc is not None
+            if DocAPI.is_heading(b, 2) and \
+                DocAPI.get_paragraph_str(b) == chall_category:
+                b2 = body_blocks[i+1]
+                loc = b2[b2['type']]['location']['startIndex']
+                break
+
+        if loc is None:
+            API.update_doc(tok, \
+                DocAPI.make_end_insert_req(doc['revision'], chall_category, 2))
+            doc = API.get_doc(tok)
+            API.update_doc(tok, \
+                DocAPI.make_end_insert_req(doc['revision'], "%s | open | working: " % chall_name, 3))
+        else:
+            API.update_doc(tok, \
+                DocAPI.make_insert_req(doc['revision'], "%s | open | working: " % chall_name, 3, loc))
 
         # update manager
         CTF.add_challenge(event_name, chall_name, \
@@ -426,6 +392,20 @@ class HelpCommand(CommandHandler):
             {'text': ret})
         return Response("OK", 200)
 
+class DebugCommand(CommandHandler):
+    @staticmethod
+    def help():
+        return 'show this message'
+
+    @staticmethod
+    def args():
+        return []
+
+    def handle_command(self, cmd: List[str], event: Dict[str, Any]) -> Response:
+        API.send_message(event['message']['chat_id'], \
+            {'text': CTF.get_debug_info()})
+        return Response("OK", 200)
+
 class MessageReceiveEventHandler(FeishuEventHandler):
 
     HANDLERS = {
@@ -443,6 +423,7 @@ class MessageReceiveEventHandler(FeishuEventHandler):
         'progress': ProgressCommand(),
         'prog': ProgressCommand(),
         'help': HelpCommand(),
+        'debug': DebugCommand()
     }
 
     def handle(self, event: Dict[str, Any]) -> Response:

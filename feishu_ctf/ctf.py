@@ -34,6 +34,11 @@ class CtfManager:
 		return self._event_map[event][1].get(chall)
 	def get_doc_token(self, event):
 		return self._event_map[event][2]
+	def get_debug_info(self):
+		ret = "_event_map: {}\n".format(self._event_map)
+		ret += "_group_map: {}\n".format(self._group_map)
+		ret += "_events: {}\n".format(self._events)
+		return ret
 
 class Event:
 	def __init__(self):

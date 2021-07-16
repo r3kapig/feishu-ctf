@@ -155,4 +155,57 @@ class FeishuClient:
     def update_doc(self, doc_token: str, data: Dict[str, Any]):
         return self.authorized_post(FeishuClient.UPDATE_DOC_URL.format(doc_token), data)
 
+class DocAPI:
+    @staticmethod
+    def is_heading(b: Dict[str, Any], level: int) -> bool:
+        return b['type'] == 'paragraph' and \
+                b.get('paragraph') is not None and \
+                b['paragraph'].get('style') is not None and \
+                b['paragraph']['style'].get('headingLevel') == level
+
+    @staticmethod
+    def get_paragraph_str(b: Dict[str, Any]) -> str:
+        # `b` must be paragraph
+        elements = b['paragraph'].get('elements')
+        if type(elements) != list: # elements is None
+            return ""
+        ret = ""
+        for e in elements:
+            if e['type'] == 'textRun' and \
+                e.get('textRun') is not None and \
+                e['textRun'].get('text') is not None:
+                ret += e['textRun']['text']
+        return ret
+
+    @staticmethod
+    def make_category_head(category: str, level: int) -> str:
+        return json.dumps({'blocks':[{"type": "paragraph",
+            "paragraph": {
+                "elements":
+                    [{"type": "textRun",
+                        "textRun":
+                        {"text": category,
+                        "style": {}}
+                        }],
+                "style": {"headingLevel" : level}
+            }}]}, separators=(',', ':'))
+
+    @staticmethod
+    def make_req(revision: str, s: str, level: int, loc: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            'Revision': revision,
+            'Requests': [json.dumps({'requestType': 'InsertBlocksRequestType',
+                'insertBlocksRequest':
+                    {'payload': DocAPI.make_category_head(s, level),
+                    'location': loc}}, separators=(',', ':'))]}
+
+    @staticmethod
+    def make_end_insert_req(revision: str, s: str, level: int) -> Dict[str, Any]:
+        return DocAPI.make_req(revision, s, level, {'zoneId': "0", 'index': 0, 'endOfZone': True})
+
+    @staticmethod
+    def make_insert_req(revision: str, s: str, level: int, idx: int) -> Dict[str, Any]:
+        return DocAPI.make_req(revision, s, level, {'zoneId': "0", 'index': idx})
+
+
 API = FeishuClient()
