@@ -15,6 +15,7 @@ class FeishuClient:
     APP_VERIFICATION_TOKEN = os.environ['FEISHU_VERIFICATION_TOKEN']
     APP_SECRET = os.environ['FEISHU_SECRET']
     APP_ID = os.environ['APP_ID']
+    DOC_TEMPLATE = os.environ['DOC_TEMPLATE']
 
     MESSAGE_URL = '	https://open.feishu.cn/open-apis/im/v1/messages'
     GET_APP_ACCESS_TOKEN_URL = 'https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal/'
@@ -23,6 +24,10 @@ class FeishuClient:
     CHAT_INFO_URL = 'https://open.feishu.cn/open-apis/im/v1/chats/{}'
     LIST_CHAT_URL = 'https://open.feishu.cn/open-apis/im/v1/chats'
     USER_INFO_URL = 'https://open.feishu.cn/open-apis/contact/v1/user/batch_get?employee_ids={}'
+    CREATE_DOC_URL = 'https://open.feishu.cn/open-apis/doc/v2/create'
+    GET_DOC_URL = 'https://open.feishu.cn/open-apis/doc/v2/{}/content'
+    SET_DOC_PERM = 'https://open.feishu.cn/open-apis/drive/permission/public/update'
+    UPDATE_DOC_URL = 'https://open.feishu.cn/open-apis/doc/v2/{}/batch_update'
 
     bot_info: Dict[str, Any]
 
@@ -131,5 +136,23 @@ class FeishuClient:
     def get_user_name(self, user_id: str):
         url = FeishuClient.USER_INFO_URL.format(user_id)
         return self.authorized_get(url)['data']['user_infos'][0]['name']
+
+    def get_doc(self, doc_token: str):
+        url = FeishuClient.GET_DOC_URL.format(doc_token)
+        return self.authorized_get(url)['data']
+
+    def get_template_doc(self):
+        return self.get_doc(FeishuClient.DOC_TEMPLATE)['content']
+
+    def create_doc(self, title: str):
+        j = {"title":{"elements":[{"type":"textRun","textRun":{"text":title,"style":{}}}]},"body":{}}
+        ret = self.authorized_post(FeishuClient.CREATE_DOC_URL, \
+            {"FolderToken":"", "Content": json.dumps(j)})['data']
+        self.authorized_post(FeishuClient.SET_DOC_PERM, \
+            {'token': ret['objToken'], 'type': 'doc', 'link_share_entity': 'tenant_editable'})
+        return ret
+
+    def update_doc(self, data: Dict[str, Any]):
+        return self.authorized_post(FeishuClient.UPDATE_DOC_URL, data)
 
 API = FeishuClient()

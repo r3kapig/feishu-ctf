@@ -45,7 +45,7 @@ class CommandHandler:
 
     def usage(self, name):
         args_help = ' '.join(map(str, self.args()))
-        return '{}: {} - {} {}'.format(
+        return '{}: {} - {} {}\n'.format(
             name, self.help(), name, args_help
         )
 
@@ -86,6 +86,40 @@ class NewChallCommand(CommandHandler):
     def args():
         return [CommandArg('category'), CommandArg('name')]
 
+    @staticmethod
+    def is_heading(b: Dict[str, Any], level: int) -> bool:
+        return b['type'] == 'paragraph' and \
+                b.get('paragraph') is not None and \
+                b['paragraph'].get('style') is not None and \
+                b['paragraph']['style'].get('headingLevel') == level
+
+    @staticmethod
+    def get_paragraph_str(b: Dict[str, Any]) -> str:
+        # `b` must be paragraph
+        elements = b['paragraph'].get('elements')
+        if type(elements) != list: # elements is None
+            return ""
+        ret = ""
+        for e in elements:
+            if e['type'] == 'textRun' and \
+                e.get('textRun') is not None and \
+                e['textRun'].get('text') is not None:
+                ret += e['textRun']['text']
+        return ret
+
+    @staticmethod
+    def make_category_head(category: str, level: int) -> str:
+        return json.dumps({'blocks':[{"type": "paragraph",
+            "paragraph": {
+                "elements":
+                    [{"type": "textRun",
+                        "textRun":
+                        {"text": category,
+                        "style": {}}
+                        }],
+                "style": {"headingLevel" : level}
+            }}]})
+
     def handle_command(self, cmd: List[str], event: Dict[str, Any]) -> Response:
         chat_id = event['message']['chat_id']
 
@@ -99,7 +133,7 @@ class NewChallCommand(CommandHandler):
             return Response('liangjs said: Error happened! No!', 200)
 
         # obtain basic information
-        chall_category = cmd[0]
+        chall_category = cmd[0].capitalize()
         chall_name = cmd[1]
         # cur_chat_name = API.get_chat_info(chat_id)['name']
         # check if already exists
@@ -113,6 +147,31 @@ class NewChallCommand(CommandHandler):
         new_chat_info = API.create_chat_group(name, description)
         content = {'chat_id': new_chat_info['chat_id']}
         API.send_message(chat_id, content, msg_type='share_chat')
+
+        # update doc
+        tok = CTF.get_doc_token(event_name)
+        doc = API.get_doc(tok)
+        body_blocks = json.loads(doc['content'])['body']['blocks']
+        loc = None
+        for i in range(0, len(body_blocks)):
+            b = body_blocks[i]
+            if NewChallCommand.is_heading(b, 2) and \
+                NewChallCommand.get_paragraph_str(b) == chall_category:
+                loc = b['paragraph']['location']['endIndex']
+            elif i == len(body_blocks) - 1:
+                loc = b[b['type']]['location']['endIndex']
+                data = {'docToken': tok,
+                'Revision': doc['revision'],
+                'Requests': [json.dumps({'requestType': 'InsertBlocksRequestType',
+                    'insertBlocksRequest':
+                        {'payload': NewChallCommand.make_category_head(chall_category, 2),
+                        'location':
+                            {'zoneId': 0, 'index': 0, 'endOfZone': True}}})]}
+                API.send_message(chat_id, {'text': "{}".format(data)})
+                API.update_doc(data)
+        assert loc is not None
+
+
 
         # update manager
         CTF.add_challenge(event_name, chall_name, \
@@ -143,12 +202,17 @@ class NewEventCommand(CommandHandler):
 
         # create the chat group
         new_chat_info = API.create_chat_group(ctf_name, ctf_name)
-        # add to CTF manager
-        CTF.new_event(ctf_name, new_chat_info['chat_id'])
         # send the newly created chat
         API.send_message(chat_id, \
             {'chat_id': new_chat_info['chat_id']}, \
             msg_type='share_chat')
+
+        # create doc
+        doc = API.create_doc(ctf_name)
+        API.send_message(chat_id, {'text': doc['url']})
+
+        # add to CTF manager
+        CTF.new_event(ctf_name, new_chat_info['chat_id'], doc['objToken'])
 
         return Response("OK", 200)
 
@@ -234,9 +298,9 @@ class WorkCommand(CommandHandler):
         chat_id = event['message']['chat_id']
 
         # get user who sends this message
-        uid = event['sender']['sender_id']['user_id']
+        uid = API.get_user_name(event['sender']['sender_id']['user_id'])
         API.send_message(chat_id, {'text': \
-            "{} is working on the challenge".format(API.get_user_name(uid))})
+            "{} is working on the challenge".format(uid)})
 
         # get current CTF challenge
         chall = CTF.get_chall_from_group(chat_id)
@@ -244,7 +308,7 @@ class WorkCommand(CommandHandler):
             API.send_message(chat_id, {'text': "Error: command should be used within chat associated with a challenge"})
             return Response('liangjs said: Error happened! No!', 200)
 
-        CTF.get_event(chall[0]).get_chall(chall[1]).add_person(API.get_user_name(uid))
+        CTF.get_event(chall[0]).get_chall(chall[1]).add_person(uid)
         # TODO: may change
         return Response("OK", 200)
 
@@ -289,6 +353,37 @@ class ProgressCommand(MarkCommands):
         return self.handle_command_helper(cmd, event, ChallState.Progress)
 
 
+class HelpCommand(CommandHandler):
+    @staticmethod
+    def help():
+        return 'show this message'
+
+    @staticmethod
+    def args():
+        return []
+
+    def handle_command(self, cmd: List[str], event: Dict[str, Any]) -> Response:
+        cmds = {
+            'new-chall': NewChallCommand,
+            'nc': NewChallCommand,
+            '新题': NewChallCommand,
+            'newctf': NewEventCommand,
+            'showchat': ShowChatCommand,
+            'sc': ShowChatCommand,
+            'ls': ListCommand,
+            'w': WorkCommand,
+            'solved': SolvedCommand,
+            'solve': SolvedCommand,
+            'stuck': StuckCommand,
+            'progress': ProgressCommand,
+            'prog': ProgressCommand
+        }
+        ret = ""
+        for k in cmds:
+            ret += cmds[k]().usage(k)
+        API.send_message(event['message']['chat_id'], \
+            {'text': ret})
+
 class MessageReceiveEventHandler(FeishuEventHandler):
 
     HANDLERS = {
@@ -304,7 +399,8 @@ class MessageReceiveEventHandler(FeishuEventHandler):
         'solve': SolvedCommand(),
         'stuck': StuckCommand(),
         'progress': ProgressCommand(),
-        'prog': ProgressCommand()
+        'prog': ProgressCommand(),
+        'help': HelpCommand(),
     }
 
     def handle(self, event: Dict[str, Any]) -> Response:

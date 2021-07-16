@@ -16,10 +16,10 @@ class CtfManager:
 		# data in these 3 fields should always be consistent
 	def get_event(self, name):
 		return self._events.get(name)
-	def new_event(self, name, group_id):
+	def new_event(self, name, group_id, doc):
 		self._events[name] = Event()
 		self._group_map[group_id] = (name, None)
-		self._event_map[name] = (group_id, dict())
+		self._event_map[name] = (group_id, dict(), doc)
 	def get_event_from_group(self, group_id):
 		return self._group_map.get(group_id, (None,))[0]
 	def get_chall_from_group(self, group_id):
@@ -32,6 +32,8 @@ class CtfManager:
 		return self._event_map[event][0]
 	def get_chall_chat(self, event, chall):
 		return self._event_map[event][1].get(chall)
+	def get_doc_token(self, event):
+		return self._event_map[event][2]
 
 class Event:
 	def __init__(self):
