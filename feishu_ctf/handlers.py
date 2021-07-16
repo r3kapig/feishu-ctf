@@ -118,7 +118,7 @@ class NewChallCommand(CommandHandler):
                         "style": {}}
                         }],
                 "style": {"headingLevel" : level}
-            }}]})
+            }}]}, separators=(',', ':'))
 
     def handle_command(self, cmd: List[str], event: Dict[str, Any]) -> Response:
         chat_id = event['message']['chat_id']
@@ -160,23 +160,22 @@ class NewChallCommand(CommandHandler):
                 loc = b['paragraph']['location']['endIndex']
             elif i == len(body_blocks) - 1:
                 loc = b[b['type']]['location']['endIndex']
-                data = {'docToken': tok,
+                data = {
                 'Revision': doc['revision'],
                 'Requests': [json.dumps({'requestType': 'InsertBlocksRequestType',
                     'insertBlocksRequest':
                         {'payload': NewChallCommand.make_category_head(chall_category, 2),
                         'location':
-                            {'zoneId': 0, 'index': 0, 'endOfZone': True}}})]}
+                            {'zoneId': 0, 'index': 0, 'endOfZone': True}}}, separators=(',', ':'))]}
                 API.send_message(chat_id, {'text': "{}".format(data)})
-                API.update_doc(data)
+                API.update_doc(tok, data)
         assert loc is not None
-
-
 
         # update manager
         CTF.add_challenge(event_name, chall_name, \
             chall_category, new_chat_info['chat_id'])
 
+        API.send_message(chat_id, {'text': "Adding challenge success!"})
         return Response("OK", 200)
 
 class NewEventCommand(CommandHandler):
@@ -214,6 +213,7 @@ class NewEventCommand(CommandHandler):
         # add to CTF manager
         CTF.new_event(ctf_name, new_chat_info['chat_id'], doc['objToken'])
 
+        API.send_message(chat_id, {'text': "Adding CTF success!"})
         return Response("OK", 200)
 
 
@@ -270,7 +270,7 @@ class ListCommand(CommandHandler):
 
         # get the result
         ctf = CTF.get_event(event_name)
-        ret = ""
+        ret = "Challenges: \n"
         def show(chall_name, chall):
             nonlocal ret
             ret += "%s(%s)[%s]: %s\n" % (chall_name, \
@@ -310,6 +310,8 @@ class WorkCommand(CommandHandler):
 
         CTF.get_event(chall[0]).get_chall(chall[1]).add_person(uid)
         # TODO: may change
+
+        API.send_message(chat_id, {'text': "You are now working on the challenge"})
         return Response("OK", 200)
 
 class MarkCommands(CommandHandler):
@@ -328,6 +330,7 @@ class MarkCommands(CommandHandler):
 
         CTF.get_event(chall[0]).get_chall(chall[1]).state = state
 
+        API.send_message(chat_id, {'text': "Marking success"})
         return Response("OK", 200)
 
 class SolvedCommand(MarkCommands):
@@ -383,6 +386,7 @@ class HelpCommand(CommandHandler):
             ret += cmds[k]().usage(k)
         API.send_message(event['message']['chat_id'], \
             {'text': ret})
+        return Response("OK", 200)
 
 class MessageReceiveEventHandler(FeishuEventHandler):
 

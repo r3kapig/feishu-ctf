@@ -152,7 +152,7 @@ class FeishuClient:
             {'token': ret['objToken'], 'type': 'doc', 'link_share_entity': 'tenant_editable'})
         return ret
 
-    def update_doc(self, data: Dict[str, Any]):
-        return self.authorized_post(FeishuClient.UPDATE_DOC_URL, data)
+    def update_doc(self, doc_token: str, data: Dict[str, Any]):
+        return self.authorized_post(FeishuClient.UPDATE_DOC_URL.format(doc_token), data)
 
 API = FeishuClient()
