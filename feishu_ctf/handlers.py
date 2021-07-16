@@ -6,6 +6,44 @@ from flask import Request, Response
 from feishu_ctf.api import API
 from feishu_ctf.ctf import CTF, ChallState
 
+
+# Two sets are used to remember all handled events
+# This is to avoid a situation that:
+# 1. first set has too many elements already, clear
+# 2. now a request that conflicts with the already cleared
+#    elements is present.
+#
+# Without a buffered event set, this would introduce the
+# doubly handled event problem.
+#
+# i.e, double buffer mechanism.
+HANDLED_EVENTS = set()
+HANDLED_EVENTS_BUFFER = set()
+
+def is_event_repeated(event_header: Dict[str, str]) -> bool:
+    """checks if a event is a repeated event. If not, remember that, any other should not
+    """
+    global HANDLED_EVENTS, HANDLED_EVENTS_BUFFER
+
+    event_id = event_header.get('event_id')
+    if event_id is None:
+        return False
+
+    if event_id in HANDLED_EVENTS or event_id in HANDLED_EVENTS_BUFFER:
+        return False
+
+    # ok, we are now sure we are true.
+    if event_id not in HANDLED_EVENTS:
+        HANDLED_EVENTS.add(event_id)
+    
+    if len(HANDLED_EVENTS) > 1000:
+        # buffering
+        HANDLED_EVENTS_BUFFER = HANDLED_EVENTS
+        HANDLED_EVENTS = set()
+
+    return True
+
+
 class FeishuHandlerException(Exception):
     pass
 
@@ -452,6 +490,9 @@ class EventCallbackHandler(FeishuHandler):
     }
 
     def handle(self, info: Dict[str, Any]) -> Response:
+        if not is_event_repeated(info['header']):
+            return Response('repeated event, ignore')
+
         typ = info['header']['event_type']
         if typ not in self.HANDLERS:
             raise FeishuHandlerException('unsupported event {}'.format(typ))
